@@ -1003,13 +1003,6 @@ function PageView({ roleKey, role, pageKey, pageTitle, navigate, openModal, sele
         />
       ) : null}
 
-      <section className="route-map">
-        <div>
-          <h2>Workflow Route</h2>
-          <p>{getRouteLine(roleKey)}</p>
-        </div>
-        <WorkflowStrip roleKey={roleKey} status={selectedRecord.status} />
-      </section>
     </div>
   );
 }
