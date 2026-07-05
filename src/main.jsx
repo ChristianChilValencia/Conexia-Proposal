@@ -467,7 +467,7 @@ function Landing({ navigate }) {
     <main className="landing-page">
       <header className="landing-nav">
         <button className="brand-lockup" onClick={() => navigate("/roles")} type="button">
-          <span className="seal">USJR</span>
+        {/* ari e add ang logo */}
           <span>
             <strong>CONEXIA</strong>
             <small>International Relations Office</small>
