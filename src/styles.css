@@ -1591,6 +1591,69 @@ textarea:focus-visible {
   font-weight: 800;
 }
 
+.collaboration-ledger {
+  display: grid;
+  gap: 14px;
+}
+
+.comment-composer {
+  display: grid;
+  gap: 10px;
+}
+
+.comment-composer textarea {
+  min-height: 108px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfdfb;
+  color: var(--ink);
+}
+
+.comment-composer .solid-mini {
+  justify-self: end;
+}
+
+.modal-notification-list {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+}
+
+.modal-notification-list article {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbf9;
+}
+
+.modal-notification-list article div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-notification-list strong {
+  color: var(--green-900);
+}
+
+.modal-notification-list small,
+.modal-notification-list span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.modal-notification-list p {
+  padding: 0;
+  color: var(--ink);
+}
+
 .modal-fields textarea {
   min-height: 120px;
   width: 100%;

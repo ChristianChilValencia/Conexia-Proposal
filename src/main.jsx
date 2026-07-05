@@ -457,6 +457,7 @@ function App() {
   const [modal, setModal] = useState(null);
   const [workflowState, setWorkflowState] = useState(createInitialWorkflowState);
   const [selectedRecordId, setSelectedRecordId] = useState("MOA-2026-SCS-SAS");
+  const currentRoleKey = getRoleKeyFromPath(path);
 
   useEffect(() => {
     const onPop = () => setPath(getPath());
@@ -481,6 +482,7 @@ function App() {
     const actor = getActorLabel(action.roles[0]);
     const nextStatus = action.nextStatus;
     const stamp = "Just now";
+    const involvedRoles = getInvolvedEngagementRoles();
 
     setWorkflowState((current) => ({
       records: current.records.map((record) => (
@@ -500,9 +502,10 @@ function App() {
         {
           id: `N-${Date.now()}`,
           recordId: selectedRecord.id,
-          actor: getCurrentAssignee(nextStatus),
-          note: `${getStatusLabel(nextStatus)} needs attention for ${selectedRecord.id}.`,
+          actor,
+          note: `${selectedRecord.id} moved to ${getStatusLabel(nextStatus)}. ${getCurrentAssignee(nextStatus)} is the current assignee.`,
           time: stamp,
+          audience: involvedRoles,
         },
         ...current.notifications,
       ],
@@ -537,6 +540,57 @@ function App() {
     closeModal();
   };
 
+  const handleAddComment = (note) => {
+    if (!selectedRecord || !note.trim()) return;
+
+    const actor = getActorLabel(currentRoleKey);
+    const stamp = "Just now";
+    const involvedRoles = getInvolvedEngagementRoles();
+
+    setWorkflowState((current) => ({
+      ...current,
+      comments: [
+        {
+          id: `C-${Date.now()}`,
+          recordId: selectedRecord.id,
+          actor,
+          note: note.trim(),
+          time: stamp,
+        },
+        ...current.comments,
+      ],
+      notifications: [
+        {
+          id: `N-${Date.now()}`,
+          recordId: selectedRecord.id,
+          actor,
+          note: `${actor} added a collaboration comment on ${selectedRecord.id}.`,
+          time: stamp,
+          audience: involvedRoles.filter((roleKey) => roleKey !== currentRoleKey),
+        },
+        ...current.notifications,
+      ],
+      auditLogs: [
+        {
+          id: `A-${Date.now()}`,
+          recordId: selectedRecord.id,
+          actor,
+          event: "Added collaboration comment",
+          time: stamp,
+        },
+        ...current.auditLogs,
+      ],
+      activity: [
+        {
+          actor,
+          event: `Commented on ${selectedRecord.id}`,
+          time: stamp,
+        },
+        ...current.activity,
+      ],
+    }));
+  };
+
   return (
     <>
       <Router
@@ -546,6 +600,7 @@ function App() {
         selectedRecordId={selectedRecordId}
         setSelectedRecordId={setSelectedRecordId}
         workflowState={workflowState}
+        onAddComment={handleAddComment}
       />
       <ModalHost
         modal={modal}
@@ -553,6 +608,8 @@ function App() {
         onClose={closeModal}
         onWorkflowAction={handleWorkflowAction}
         selectedRecord={selectedRecord}
+        currentRoleKey={currentRoleKey}
+        workflowState={workflowState}
       />
     </>
   );
@@ -562,7 +619,7 @@ function getPath() {
   return window.location.pathname.replace(/\/+$/, "") || "/";
 }
 
-function Router({ path, navigate, openModal, selectedRecordId, setSelectedRecordId, workflowState }) {
+function Router({ path, navigate, openModal, selectedRecordId, setSelectedRecordId, workflowState, onAddComment }) {
   if (path === "/") {
     return <Landing navigate={navigate} />;
   }
@@ -593,6 +650,7 @@ function Router({ path, navigate, openModal, selectedRecordId, setSelectedRecord
       selectedRecordId={selectedRecordId}
       setSelectedRecordId={setSelectedRecordId}
       workflowState={workflowState}
+      onAddComment={onAddComment}
     />
   );
 }
@@ -729,7 +787,7 @@ function RoleSelection({ navigate }) {
   );
 }
 
-function PortalShell({ roleKey, role, pageKey, navigate, openModal, selectedRecordId, setSelectedRecordId, workflowState }) {
+function PortalShell({ roleKey, role, pageKey, navigate, openModal, selectedRecordId, setSelectedRecordId, workflowState, onAddComment }) {
   const page = role.pages.find(([key]) => key === pageKey);
   const pageTitle = page?.[1] ?? "Dashboard";
 
@@ -787,6 +845,7 @@ function PortalShell({ roleKey, role, pageKey, navigate, openModal, selectedReco
           selectedRecordId={selectedRecordId}
           setSelectedRecordId={setSelectedRecordId}
           workflowState={workflowState}
+          onAddComment={onAddComment}
         />
       </section>
     </main>
@@ -842,7 +901,7 @@ function Topbar({ role, navigate, openModal }) {
   );
 }
 
-function PageView({ roleKey, role, pageKey, pageTitle, navigate, openModal, selectedRecordId, setSelectedRecordId, workflowState }) {
+function PageView({ roleKey, role, pageKey, pageTitle, navigate, openModal, selectedRecordId, setSelectedRecordId, workflowState, onAddComment }) {
   const isSuperAdmin = roleKey === "super-admin";
   const selectedRecord = workflowState.records.find((record) => record.id === selectedRecordId) ?? workflowState.records[0];
   const workflowActions = getAllowedWorkflowActions(roleKey, selectedRecord);
@@ -933,13 +992,14 @@ function PageView({ roleKey, role, pageKey, pageTitle, navigate, openModal, sele
         </aside>
       </section>
 
-      {isWorkflowRole(roleKey) ? (
+      {canViewWorkflowDetail(roleKey) ? (
         <WorkflowDetail
           openModal={openModal}
           record={selectedRecord}
           roleKey={roleKey}
           workflowActions={workflowActions}
           workflowState={workflowState}
+          onAddComment={onAddComment}
         />
       ) : null}
 
@@ -1075,10 +1135,14 @@ function getQuickActions(roleKey, pageKey, isSuperAdmin, workflowActions = []) {
 
     if (primaryWorkflowActions.length > 0) return primaryWorkflowActions;
 
-    return [
+    const fallback = [
       { label: "View Detail", route: getDetailRoute(roleKey), icon: Eye, primary: true },
-      { label: "Remarks", modal: "remarks", icon: MessageSquare },
+      { label: "Notifications", modal: "notificationDetail", icon: Bell },
     ];
+    if (canAddWorkflowComment(roleKey)) {
+      fallback.splice(1, 0, { label: "Comment", route: getCommentRoute(roleKey), icon: MessageSquare });
+    }
+    return fallback;
   }
 
   if (roleKey === "department-staff") {
@@ -1339,7 +1403,11 @@ function ActionCenter({ roleKey, isSuperAdmin, navigate, openModal, selectedReco
   };
   const actions = actionMap[roleKey] ?? [];
   const panelActions = isWorkflowRole(roleKey)
-    ? workflowActions.map((action) => [action.label, action.id, getWorkflowActionIcon(action.id, action.tone), true])
+    ? [
+        ...workflowActions.map((action) => [action.label, action.id, getWorkflowActionIcon(action.id, action.tone), true, false]),
+        ...(canAddWorkflowComment(roleKey) ? [["Comment on file", getCommentRoute(roleKey), MessageSquare, false, true]] : []),
+        ["Notification detail", "notificationDetail", Bell, false, false],
+      ]
     : actions;
 
   return (
@@ -1351,11 +1419,12 @@ function ActionCenter({ roleKey, isSuperAdmin, navigate, openModal, selectedReco
         </button>
       </div>
       <div className="action-list">
-        {panelActions.length > 0 ? panelActions.map(([label, modal, Icon, workflowAction]) => (
+        {panelActions.length > 0 ? panelActions.map(([label, modal, Icon, workflowAction, routeAction]) => (
           <button
             key={label}
             onClick={() => {
               if (workflowAction) openModal({ type: "workflowDecision", actionId: modal, recordId: selectedRecord.id });
+              else if (routeAction) navigate(modal);
               else openModal(modal);
             }}
             type="button"
@@ -1400,8 +1469,8 @@ function ActivityPanel({ activity, openModal }) {
   );
 }
 
-function WorkflowDetail({ record, roleKey, workflowActions, workflowState, openModal }) {
-  const relatedComments = workflowState.comments.filter((item) => item.recordId === record.id).slice(0, 3);
+function WorkflowDetail({ record, roleKey, workflowActions, workflowState, openModal, onAddComment }) {
+  const relatedComments = workflowState.comments.filter((item) => item.recordId === record.id);
   const relatedAudit = workflowState.auditLogs.filter((item) => item.recordId === record.id).slice(0, 3);
   const relatedNotifications = workflowState.notifications.filter((item) => item.recordId === record.id).slice(0, 3);
   const relatedHistory = workflowState.statusHistory.filter((item) => item.recordId === record.id);
@@ -1447,7 +1516,11 @@ function WorkflowDetail({ record, roleKey, workflowActions, workflowState, openM
         </div>
       </article>
 
-      <WorkflowList title="Comments" items={relatedComments} empty="No comments for this MOA yet." />
+      <CollaborationLedger
+        canComment={canAddWorkflowComment(roleKey)}
+        comments={relatedComments}
+        onAddComment={onAddComment}
+      />
       <WorkflowList title="Audit Trail" items={relatedAudit.map((item) => ({ ...item, note: item.event }))} empty="No audit events yet." />
       <WorkflowList title="Notifications" items={relatedNotifications} empty="No notifications for this MOA." />
 
@@ -1485,6 +1558,52 @@ function WorkflowList({ title, items, empty }) {
           </div>
         )) : <p className="empty-copy">{empty}</p>}
       </div>
+    </article>
+  );
+}
+
+function CollaborationLedger({ canComment, comments, onAddComment }) {
+  const [draft, setDraft] = useState("");
+
+  const submitComment = () => {
+    if (!draft.trim()) return;
+    onAddComment(draft);
+    setDraft("");
+  };
+
+  return (
+    <article className="panel-card collaboration-ledger">
+      <div className="panel-heading compact">
+        <h2>Collaboration Ledger</h2>
+        <MessageSquare size={18} />
+      </div>
+      <div className="compact-list">
+        {comments.length > 0 ? comments.map((item) => (
+          <div key={item.id}>
+            <strong>{item.actor}</strong>
+            <span>{item.note}</span>
+            <small>{item.time}</small>
+          </div>
+        )) : <p className="empty-copy">No department comments for this MOA yet.</p>}
+      </div>
+      {canComment ? (
+        <div className="comment-composer">
+          <textarea
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Add revision notes, clarifications, or department coordination comments..."
+            value={draft}
+          />
+          <button className="solid-mini" onClick={submitComment} type="button">
+            <Send size={16} />
+            Post Comment
+          </button>
+        </div>
+      ) : (
+        <div className="read-only-note">
+          <LockKeyhole size={18} />
+          <span>Commenting is limited to SCS and SAS Department Staff.</span>
+        </div>
+      )}
     </article>
   );
 }
@@ -1533,9 +1652,10 @@ function getRouteLine(roleKey) {
   return "Department to IRO Staff to IRO Admin to Legal Counsel to President's Office to protected repository.";
 }
 
-function ModalHost({ modal, navigate, onClose, onWorkflowAction, selectedRecord }) {
+function ModalHost({ modal, navigate, onClose, onWorkflowAction, selectedRecord, currentRoleKey, workflowState }) {
   const isWorkflowModal = modal && typeof modal === "object" && modal.type === "workflowDecision";
   const workflowAction = isWorkflowModal ? workflowActionDefinitions[modal.actionId] : null;
+  const isNotificationModal = modal === "notificationDetail";
   const config = isWorkflowModal && workflowAction
     ? {
         title: workflowAction.modalTitle,
@@ -1544,8 +1664,16 @@ function ModalHost({ modal, navigate, onClose, onWorkflowAction, selectedRecord 
         fields: ["Decision", "Reason / comment"],
         primary: workflowAction.primary,
       }
-    : modal ? modalRegistry[modal] : null;
+    : isNotificationModal
+      ? {
+          ...modalRegistry.notificationDetail,
+          body: `Notifications for ${roleConfigs[currentRoleKey]?.label ?? "this role"} on ${selectedRecord.id}.`,
+        }
+      : modal ? modalRegistry[modal] : null;
   const [workflowNote, setWorkflowNote] = useState("");
+  const visibleNotifications = isNotificationModal
+    ? getVisibleNotifications(workflowState.notifications, currentRoleKey, selectedRecord.id)
+    : [];
 
   useEffect(() => {
     setWorkflowNote("");
@@ -1576,24 +1704,49 @@ function ModalHost({ modal, navigate, onClose, onWorkflowAction, selectedRecord 
           </button>
         </header>
         <p>{config.body}</p>
-        <div className="modal-fields">
-          {config.fields.map((field) => (
-            <label key={field}>
-              <span>{field}</span>
-              <ModalField
-                field={field}
-                workflowAction={workflowAction}
-                workflowNote={workflowNote}
-                setWorkflowNote={setWorkflowNote}
-              />
-            </label>
-          ))}
-        </div>
+        {isNotificationModal ? (
+          <NotificationList notifications={visibleNotifications} selectedRecord={selectedRecord} />
+        ) : (
+          <div className="modal-fields">
+            {config.fields.map((field) => (
+              <label key={field}>
+                <span>{field}</span>
+                <ModalField
+                  field={field}
+                  workflowAction={workflowAction}
+                  workflowNote={workflowNote}
+                  setWorkflowNote={setWorkflowNote}
+                />
+              </label>
+            ))}
+          </div>
+        )}
         <footer>
           <button className="plain-mini" onClick={onClose} type="button">Cancel</button>
           <button className="solid-mini" onClick={complete} type="button">{config.primary}</button>
         </footer>
       </section>
+    </div>
+  );
+}
+
+function NotificationList({ notifications, selectedRecord }) {
+  return (
+    <div className="modal-notification-list">
+      {notifications.length > 0 ? notifications.map((notification) => (
+        <article key={notification.id}>
+          <div>
+            <strong>{notification.actor}</strong>
+            <small>{notification.time}</small>
+          </div>
+          <p>{notification.note}</p>
+          <span>{notification.recordId}</span>
+        </article>
+      )) : (
+        <div className="modal-static-note">
+          No notifications for {selectedRecord.id} in this role view.
+        </div>
+      )}
     </div>
   );
 }
@@ -1658,6 +1811,39 @@ function getWorkflowActionIcon(actionId, tone) {
 
 function getActorLabel(roleKey) {
   return roleConfigs[roleKey]?.label ?? "Conexia Workflow";
+}
+
+function getRoleKeyFromPath(path) {
+  const [, roleKey] = path.split("/");
+  return roleConfigs[roleKey] ? roleKey : "department-staff";
+}
+
+function getInvolvedEngagementRoles() {
+  return ["scs-department-staff", "sas-department-staff", "legal", "iro-staff", "iro-admin", "president"];
+}
+
+function canAddWorkflowComment(roleKey) {
+  return ["scs-department-staff", "sas-department-staff"].includes(roleKey);
+}
+
+function canViewWorkflowDetail(roleKey) {
+  return isWorkflowRole(roleKey) || roleConfigs[roleKey]?.readOnly;
+}
+
+function getCommentRoute(roleKey) {
+  const routes = {
+    "scs-department-staff": "/scs-department-staff/collaboration",
+    "sas-department-staff": "/sas-department-staff/comments-history",
+  };
+  return routes[roleKey] ?? getDetailRoute(roleKey);
+}
+
+function getVisibleNotifications(notifications, roleKey, recordId) {
+  return notifications.filter((notification) => {
+    const matchesRecord = notification.recordId === recordId;
+    const audience = notification.audience ?? getInvolvedEngagementRoles();
+    return matchesRecord && audience.includes(roleKey);
+  });
 }
 
 function NotFound({ navigate, role }) {
