@@ -43,6 +43,18 @@ import {
   X,
 } from "lucide-react";
 import hallImage from "./assets/campus-hall.png";
+import { createInitialWorkflowState, workflowDepartments } from "./mockWorkflowData";
+import {
+  applyWorkflowTransition,
+  getAllowedWorkflowActions,
+  getCurrentAssignee,
+  getNextActionText,
+  getStatusLabel,
+  getWorkflowStepIndex,
+  isWorkflowRole,
+  workflowActionDefinitions,
+  workflowSteps,
+} from "./workflowEngine";
 import "./styles.css";
 
 const roleConfigs = {
@@ -65,6 +77,47 @@ const roleConfigs = {
       ["document-archive", "Document Archive", FileArchive],
       ["collaboration", "Collaboration", UsersRound],
       ["budget-resources", "Budget & Resources", BriefcaseBusiness],
+    ],
+  },
+  "scs-department-staff": {
+    label: "SCS Department Staff",
+    shortLabel: "SCS Staff",
+    subtitle: "SCS drafts and resubmits SAS-bound MOAs",
+    user: "Dr. Andrea Lim",
+    initials: "AL",
+    departmentScope: "SCS - School of Computer Studies",
+    defaultRoute: "/scs-department-staff/dashboard",
+    permissions: ["create", "draft", "revise", "resubmit", "send-to-sas"],
+    canCreateEngagement: true,
+    workflowOnly: true,
+    icon: Landmark,
+    pages: [
+      ["dashboard", "Dashboard", Grid2X2],
+      ["engagement-wizard", "Engagement Wizard", NotebookPen],
+      ["my-submissions", "My SCS Submissions", FileClock],
+      ["submission-detail", "SCS MOA Detail", FileSearch],
+      ["revision-workspace", "Revision Workspace", MessageSquare],
+      ["collaboration", "SAS Collaboration", UsersRound],
+    ],
+  },
+  "sas-department-staff": {
+    label: "SAS Department Staff",
+    shortLabel: "SAS Staff",
+    subtitle: "SAS reviews, returns, or approves SCS MOAs",
+    user: "Prof. Lina Reyes",
+    initials: "LR",
+    departmentScope: "SAS - School of Arts and Sciences",
+    defaultRoute: "/sas-department-staff/dashboard",
+    permissions: ["review", "comment", "approve", "reject", "return-to-scs"],
+    workflowOnly: true,
+    icon: Building2,
+    pages: [
+      ["dashboard", "Dashboard", Grid2X2],
+      ["review-queue", "SCS Review Queue", FileCheck2],
+      ["review-detail", "SAS Review Detail", ClipboardCheck],
+      ["returned-records", "Returned to SCS", TriangleAlert],
+      ["approved-routing", "Approved to Legal", Send],
+      ["comments-history", "Comments History", MessageSquare],
     ],
   },
   "iro-staff": {
@@ -402,6 +455,8 @@ const activity = [
 function App() {
   const [path, setPath] = useState(getPath());
   const [modal, setModal] = useState(null);
+  const [workflowState, setWorkflowState] = useState(createInitialWorkflowState);
+  const [selectedRecordId, setSelectedRecordId] = useState("MOA-2026-SCS-SAS");
 
   useEffect(() => {
     const onPop = () => setPath(getPath());
@@ -417,11 +472,88 @@ function App() {
 
   const openModal = (name) => setModal(name);
   const closeModal = () => setModal(null);
+  const selectedRecord = workflowState.records.find((record) => record.id === selectedRecordId) ?? workflowState.records[0];
+
+  const handleWorkflowAction = (actionId, note = "Mock workflow decision recorded.") => {
+    const action = workflowActionDefinitions[actionId];
+    if (!action || !selectedRecord) return;
+
+    const actor = getActorLabel(action.roles[0]);
+    const nextStatus = action.nextStatus;
+    const stamp = "Just now";
+
+    setWorkflowState((current) => ({
+      records: current.records.map((record) => (
+        record.id === selectedRecord.id ? applyWorkflowTransition(record, actionId) : record
+      )),
+      comments: [
+        {
+          id: `C-${Date.now()}`,
+          recordId: selectedRecord.id,
+          actor,
+          note,
+          time: stamp,
+        },
+        ...current.comments,
+      ],
+      notifications: [
+        {
+          id: `N-${Date.now()}`,
+          recordId: selectedRecord.id,
+          actor: getCurrentAssignee(nextStatus),
+          note: `${getStatusLabel(nextStatus)} needs attention for ${selectedRecord.id}.`,
+          time: stamp,
+        },
+        ...current.notifications,
+      ],
+      auditLogs: [
+        {
+          id: `A-${Date.now()}`,
+          recordId: selectedRecord.id,
+          actor,
+          event: `${action.label}: ${getStatusLabel(selectedRecord.status)} -> ${getStatusLabel(nextStatus)}`,
+          time: stamp,
+        },
+        ...current.auditLogs,
+      ],
+      statusHistory: [
+        ...current.statusHistory,
+        {
+          id: `H-${Date.now()}`,
+          recordId: selectedRecord.id,
+          status: nextStatus,
+          time: stamp,
+        },
+      ],
+      activity: [
+        {
+          actor,
+          event: `${action.label} for ${selectedRecord.id}`,
+          time: stamp,
+        },
+        ...current.activity,
+      ],
+    }));
+    closeModal();
+  };
 
   return (
     <>
-      <Router path={path} navigate={navigate} openModal={openModal} />
-      <ModalHost modal={modal} navigate={navigate} onClose={closeModal} />
+      <Router
+        path={path}
+        navigate={navigate}
+        openModal={openModal}
+        selectedRecordId={selectedRecordId}
+        setSelectedRecordId={setSelectedRecordId}
+        workflowState={workflowState}
+      />
+      <ModalHost
+        modal={modal}
+        navigate={navigate}
+        onClose={closeModal}
+        onWorkflowAction={handleWorkflowAction}
+        selectedRecord={selectedRecord}
+      />
     </>
   );
 }
@@ -430,7 +562,7 @@ function getPath() {
   return window.location.pathname.replace(/\/+$/, "") || "/";
 }
 
-function Router({ path, navigate, openModal }) {
+function Router({ path, navigate, openModal, selectedRecordId, setSelectedRecordId, workflowState }) {
   if (path === "/") {
     return <Landing navigate={navigate} />;
   }
@@ -458,6 +590,9 @@ function Router({ path, navigate, openModal }) {
       pageKey={pageKey}
       navigate={navigate}
       openModal={openModal}
+      selectedRecordId={selectedRecordId}
+      setSelectedRecordId={setSelectedRecordId}
+      workflowState={workflowState}
     />
   );
 }
@@ -594,7 +729,7 @@ function RoleSelection({ navigate }) {
   );
 }
 
-function PortalShell({ roleKey, role, pageKey, navigate, openModal }) {
+function PortalShell({ roleKey, role, pageKey, navigate, openModal, selectedRecordId, setSelectedRecordId, workflowState }) {
   const page = role.pages.find(([key]) => key === pageKey);
   const pageTitle = page?.[1] ?? "Dashboard";
 
@@ -611,30 +746,32 @@ function PortalShell({ roleKey, role, pageKey, navigate, openModal }) {
             <small>{role.subtitle}</small>
           </span>
         </button>
-        <nav aria-label={`${role.label} navigation`}>
-          {role.pages.map(([key, label, Icon]) => (
-            <button
-              className={key === pageKey ? "active" : ""}
-              key={key}
-              onClick={() => navigate(`/${roleKey}/${key}`)}
-              type="button"
-            >
-              <Icon size={20} />
-              <span>{label}</span>
+        <div className="portal-sidebar-body">
+          <nav aria-label={`${role.label} navigation`}>
+            {role.pages.map(([key, label, Icon]) => (
+              <button
+                className={key === pageKey ? "active" : ""}
+                key={key}
+                onClick={() => navigate(`/${roleKey}/${key}`)}
+                type="button"
+              >
+                <Icon size={20} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="portal-sidebar-spacer" />
+          <SidebarEngagementButton role={role} openModal={openModal} />
+          <div className="sidebar-bottom">
+            <button onClick={() => openModal("notificationDetail")} type="button">
+              <Bell size={20} />
+              <span>Notifications</span>
             </button>
-          ))}
-        </nav>
-        <div className="portal-sidebar-spacer" />
-        <SidebarEngagementButton role={role} openModal={openModal} />
-        <div className="sidebar-bottom">
-          <button onClick={() => openModal("notificationDetail")} type="button">
-            <Bell size={20} />
-            <span>Notifications</span>
-          </button>
-          <button onClick={() => navigate("/")} type="button">
-            <LogOut size={20} />
-            <span>Logout</span>
-          </button>
+            <button onClick={() => navigate("/")} type="button">
+              <LogOut size={20} />
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -647,6 +784,9 @@ function PortalShell({ roleKey, role, pageKey, navigate, openModal }) {
           pageTitle={pageTitle}
           navigate={navigate}
           openModal={openModal}
+          selectedRecordId={selectedRecordId}
+          setSelectedRecordId={setSelectedRecordId}
+          workflowState={workflowState}
         />
       </section>
     </main>
@@ -702,10 +842,12 @@ function Topbar({ role, navigate, openModal }) {
   );
 }
 
-function PageView({ roleKey, role, pageKey, pageTitle, navigate, openModal }) {
+function PageView({ roleKey, role, pageKey, pageTitle, navigate, openModal, selectedRecordId, setSelectedRecordId, workflowState }) {
   const isSuperAdmin = roleKey === "super-admin";
-  const metrics = getMetrics(roleKey, pageKey);
-  const quickActions = getQuickActions(roleKey, pageKey, isSuperAdmin);
+  const selectedRecord = workflowState.records.find((record) => record.id === selectedRecordId) ?? workflowState.records[0];
+  const workflowActions = getAllowedWorkflowActions(roleKey, selectedRecord);
+  const metrics = getMetrics(roleKey, pageKey, workflowState);
+  const quickActions = getQuickActions(roleKey, pageKey, isSuperAdmin, workflowActions);
 
   return (
     <div className="portal-content">
@@ -720,7 +862,11 @@ function PageView({ roleKey, role, pageKey, pageTitle, navigate, openModal }) {
             <button
               className={action.primary ? "solid-mini" : "plain-mini"}
               key={action.label}
-              onClick={() => (action.route ? navigate(action.route) : openModal(action.modal))}
+              onClick={() => {
+                if (action.route) navigate(action.route);
+                else if (action.actionId) openModal({ type: "workflowDecision", actionId: action.actionId, recordId: selectedRecord.id });
+                else openModal(action.modal);
+              }}
               type="button"
             >
               <action.icon size={18} />
@@ -745,7 +891,7 @@ function PageView({ roleKey, role, pageKey, pageTitle, navigate, openModal }) {
         ))}
       </section>
 
-      <section className="workspace-grid">
+      <section className={isWorkflowRole(roleKey) ? "workspace-grid workflow-workspace" : "workspace-grid"}>
         <article className="panel-card table-panel">
           <div className="panel-heading">
             <div>
@@ -763,20 +909,52 @@ function PageView({ roleKey, role, pageKey, pageTitle, navigate, openModal }) {
               </button>
             </div>
           </div>
-          <RecordTable roleKey={roleKey} pageKey={pageKey} navigate={navigate} openModal={openModal} />
+          <RecordTable
+            roleKey={roleKey}
+            pageKey={pageKey}
+            navigate={navigate}
+            openModal={openModal}
+            records={workflowState.records}
+            selectedRecordId={selectedRecord.id}
+            setSelectedRecordId={setSelectedRecordId}
+          />
         </article>
 
         <aside className="side-stack">
-          <ActionCenter roleKey={roleKey} isSuperAdmin={isSuperAdmin} navigate={navigate} openModal={openModal} />
-          <ActivityPanel openModal={openModal} />
+          <ActionCenter
+            roleKey={roleKey}
+            isSuperAdmin={isSuperAdmin}
+            navigate={navigate}
+            openModal={openModal}
+            selectedRecord={selectedRecord}
+            workflowActions={workflowActions}
+          />
+          <ActivityPanel activity={workflowState.activity} openModal={openModal} />
         </aside>
       </section>
-      
+
+      {isWorkflowRole(roleKey) ? (
+        <WorkflowDetail
+          openModal={openModal}
+          record={selectedRecord}
+          roleKey={roleKey}
+          workflowActions={workflowActions}
+          workflowState={workflowState}
+        />
+      ) : null}
+
+      <section className="route-map">
+        <div>
+          <h2>Workflow Route</h2>
+          <p>{getRouteLine(roleKey)}</p>
+        </div>
+        <WorkflowStrip roleKey={roleKey} status={selectedRecord.status} />
+      </section>
     </div>
   );
 }
 
-function getMetrics(roleKey, pageKey) {
+function getMetrics(roleKey, pageKey, workflowState) {
   const shared = [
     { label: "Active Records", value: "24", detail: "Across active scope", tone: "green", icon: FileArchive },
     { label: "Pending", value: "8", detail: "Needs action", tone: "gold", icon: FileClock },
@@ -790,6 +968,18 @@ function getMetrics(roleKey, pageKey) {
       { label: "Security Events", value: "17", detail: "Last 24 hours", tone: "gold", icon: ShieldCheck },
       { label: "Locked Accounts", value: "4", detail: "Requires review", tone: "red", icon: LockKeyhole },
       { label: "Audit Integrity", value: "100%", detail: "Verified", tone: "soft", icon: FileSearch },
+    ];
+  }
+
+  if (isWorkflowRole(roleKey)) {
+    const pendingCount = workflowState.records.filter((record) => !["FINAL_APPROVED", "FINAL_REJECTED"].includes(record.status)).length;
+    const returnedCount = workflowState.records.filter((record) => ["SENT_BACK_TO_SCS", "LEGAL_REVISION_REQUIRED"].includes(record.status)).length;
+    const approvedCount = workflowState.records.filter((record) => record.status === "FINAL_APPROVED").length;
+    return [
+      { label: "Demo MOAs", value: String(workflowState.records.length), detail: "SCS to SAS route", tone: "green", icon: Workflow },
+      { label: "Pending Action", value: String(pendingCount), detail: "Across mock state", tone: "gold", icon: FileClock },
+      { label: "Returned", value: String(returnedCount), detail: "Revision required", tone: "red", icon: TriangleAlert },
+      { label: "Final Approved", value: String(approvedCount), detail: "President completed", tone: "soft", icon: CheckCheck },
     ];
   }
 
@@ -859,7 +1049,7 @@ function getMetrics(roleKey, pageKey) {
   return shared;
 }
 
-function getQuickActions(roleKey, pageKey, isSuperAdmin) {
+function getQuickActions(roleKey, pageKey, isSuperAdmin, workflowActions = []) {
   if (isSuperAdmin) {
     return [
       { label: "User Account", modal: "userAccount", icon: UserCog, primary: true },
@@ -872,6 +1062,22 @@ function getQuickActions(roleKey, pageKey, isSuperAdmin) {
     return [
       { label: "View History", route: getDetailRoute(roleKey), icon: History, primary: true },
       { label: "Export", modal: "exportReport", icon: Download },
+    ];
+  }
+
+  if (isWorkflowRole(roleKey)) {
+    const primaryWorkflowActions = workflowActions.slice(0, 3).map((action, index) => ({
+      label: action.label,
+      actionId: action.id,
+      icon: getWorkflowActionIcon(action.id, action.tone),
+      primary: index === 0,
+    }));
+
+    if (primaryWorkflowActions.length > 0) return primaryWorkflowActions;
+
+    return [
+      { label: "View Detail", route: getDetailRoute(roleKey), icon: Eye, primary: true },
+      { label: "Remarks", modal: "remarks", icon: MessageSquare },
     ];
   }
 
@@ -969,17 +1175,17 @@ function getTableTitle(pageKey) {
   return "Engagement Records";
 }
 
-function RecordTable({ roleKey, pageKey, navigate, openModal }) {
+function RecordTable({ roleKey, pageKey, navigate, openModal, records, selectedRecordId, setSelectedRecordId }) {
   const detailRoute = getDetailRoute(roleKey);
   const isSuperAdmin = roleKey === "super-admin";
   const isReadOnly = roleConfigs[roleKey]?.readOnly;
-  const canEdit = ["department-staff", "iro-admin"].includes(roleKey);
-  const canComment = ["department-staff", "iro-staff", "legal", "president"].includes(roleKey);
-  const canReview = ["iro-staff", "legal"].includes(roleKey);
-  const canDecide = ["iro-admin", "president"].includes(roleKey);
+  const canEdit = ["department-staff"].includes(roleKey);
+  const canComment = ["department-staff"].includes(roleKey);
+  const canReview = false;
+  const canDecide = false;
 
   return (
-    <div className="record-table">
+    <div className={isWorkflowRole(roleKey) ? "record-table workflow-record-table" : "record-table"}>
       <div className="record-head">
         <span>Reference</span>
         <span>Partner / Item</span>
@@ -987,19 +1193,44 @@ function RecordTable({ roleKey, pageKey, navigate, openModal }) {
         <span>Status</span>
         <span>Actions</span>
       </div>
-      {records.map((record) => (
-        <div className="record-row" key={`${pageKey}-${record.id}`}>
+      {records.map((record) => {
+        const workflowActions = getAllowedWorkflowActions(roleKey, record);
+        return (
+        <div className={record.id === selectedRecordId ? "record-row selected" : "record-row"} key={`${pageKey}-${record.id}`}>
           <span className="reference">{record.id}</span>
           <span>
-            <strong>{record.partner}</strong>
+            <strong>{record.title ?? record.partner}</strong>
             <small>{record.type} by {record.owner}</small>
           </span>
           <span>{record.department}</span>
-          <span className={`status-pill ${statusClass(record.status)}`}>{record.status}</span>
+          <span className={`status-pill ${statusClass(record.status)}`}>{getStatusLabel(record.status)}</span>
           <span className="row-actions">
-            <button aria-label={`View ${record.id}`} onClick={() => navigate(detailRoute)} type="button">
+            <button
+              aria-label={`View ${record.id}`}
+              onClick={() => {
+                setSelectedRecordId(record.id);
+                navigate(detailRoute);
+              }}
+              type="button"
+            >
               <Eye size={18} />
             </button>
+            {isWorkflowRole(roleKey) ? workflowActions.slice(0, 2).map((action) => {
+              const Icon = getWorkflowActionIcon(action.id, action.tone);
+              return (
+                <button
+                  aria-label={`${action.label} for ${record.id}`}
+                  key={action.id}
+                  onClick={() => {
+                    setSelectedRecordId(record.id);
+                    openModal({ type: "workflowDecision", actionId: action.id, recordId: record.id });
+                  }}
+                  type="button"
+                >
+                  <Icon size={18} />
+                </button>
+              );
+            }) : null}
             {canComment ? (
               <button aria-label={`Add remarks to ${record.id}`} onClick={() => openModal("remarks")} type="button">
                 <MessageSquare size={18} />
@@ -1027,22 +1258,25 @@ function RecordTable({ roleKey, pageKey, navigate, openModal }) {
             ) : null}
           </span>
         </div>
-      ))}
+      )})}
     </div>
   );
 }
 
 function statusClass(status) {
-  if (status.includes("Returned")) return "returned";
-  if (status.includes("Legal")) return "review";
-  if (status.includes("Pending")) return "pending";
-  if (status.includes("Approved")) return "active";
+  const label = getStatusLabel(status);
+  if (label.includes("Returned") || label.includes("Rejected") || label.includes("Required")) return "returned";
+  if (label.includes("Legal") || label.includes("Review")) return "review";
+  if (label.includes("Sent") || label.includes("Pending")) return "pending";
+  if (label.includes("Approved")) return "active";
   return "neutral";
 }
 
 function getDetailRoute(roleKey) {
   const routes = {
     "department-staff": "/department-staff/submission-detail",
+    "scs-department-staff": "/scs-department-staff/submission-detail",
+    "sas-department-staff": "/sas-department-staff/review-detail",
     "iro-staff": "/iro-staff/review-detail",
     "iro-admin": "/iro-admin/approval-queue",
     "iro-reads": "/iro-reads/approval-history",
@@ -1055,7 +1289,7 @@ function getDetailRoute(roleKey) {
   return routes[roleKey] ?? "/";
 }
 
-function ActionCenter({ roleKey, isSuperAdmin, navigate, openModal }) {
+function ActionCenter({ roleKey, isSuperAdmin, navigate, openModal, selectedRecord, workflowActions }) {
   const actionMap = {
     "department-staff": [
       ["Upload memorandum", "uploadPdf", FileText],
@@ -1104,6 +1338,9 @@ function ActionCenter({ roleKey, isSuperAdmin, navigate, openModal }) {
     ],
   };
   const actions = actionMap[roleKey] ?? [];
+  const panelActions = isWorkflowRole(roleKey)
+    ? workflowActions.map((action) => [action.label, action.id, getWorkflowActionIcon(action.id, action.tone), true])
+    : actions;
 
   return (
     <article className="panel-card action-center">
@@ -1114,13 +1351,25 @@ function ActionCenter({ roleKey, isSuperAdmin, navigate, openModal }) {
         </button>
       </div>
       <div className="action-list">
-        {actions.map(([label, modal, Icon]) => (
-          <button key={label} onClick={() => openModal(modal)} type="button">
+        {panelActions.length > 0 ? panelActions.map(([label, modal, Icon, workflowAction]) => (
+          <button
+            key={label}
+            onClick={() => {
+              if (workflowAction) openModal({ type: "workflowDecision", actionId: modal, recordId: selectedRecord.id });
+              else openModal(modal);
+            }}
+            type="button"
+          >
             <Icon size={19} />
             <span>{label}</span>
             <ChevronRight size={16} />
           </button>
-        ))}
+        )) : (
+          <div className="read-only-note">
+            <LockKeyhole size={18} />
+            <span>No workflow action available at this stage.</span>
+          </div>
+        )}
       </div>
       <button className="wide-link" onClick={() => navigate(roleConfigs[roleKey].defaultRoute)} type="button">
         Open {roleConfigs[roleKey].shortLabel} dashboard
@@ -1129,7 +1378,7 @@ function ActionCenter({ roleKey, isSuperAdmin, navigate, openModal }) {
   );
 }
 
-function ActivityPanel({ openModal }) {
+function ActivityPanel({ activity, openModal }) {
   return (
     <article className="panel-card">
       <div className="panel-heading compact">
@@ -1139,8 +1388,8 @@ function ActivityPanel({ openModal }) {
         </button>
       </div>
       <div className="activity-feed">
-        {activity.map(([actor, event, time]) => (
-          <button key={`${actor}-${event}`} onClick={() => openModal("auditDetail")} type="button">
+        {activity.map(({ actor, event, time }) => (
+          <button key={`${actor}-${event}-${time}`} onClick={() => openModal("auditDetail")} type="button">
             <strong>{actor}</strong>
             <span>{event}</span>
             <small>{time}</small>
@@ -1151,24 +1400,116 @@ function ActivityPanel({ openModal }) {
   );
 }
 
-function WorkflowStrip({ roleKey }) {
-  const steps = ["Department", "IRO Staff", "IRO Admin", "Legal", "President", "Repository"];
+function WorkflowDetail({ record, roleKey, workflowActions, workflowState, openModal }) {
+  const relatedComments = workflowState.comments.filter((item) => item.recordId === record.id).slice(0, 3);
+  const relatedAudit = workflowState.auditLogs.filter((item) => item.recordId === record.id).slice(0, 3);
+  const relatedNotifications = workflowState.notifications.filter((item) => item.recordId === record.id).slice(0, 3);
+  const relatedHistory = workflowState.statusHistory.filter((item) => item.recordId === record.id);
+  const reachedIndex = getWorkflowStepIndex(record.status);
+
+  return (
+    <section className="workflow-detail-grid" aria-label={`${record.id} workflow detail`}>
+      <article className="panel-card workflow-detail-main">
+        <div className="panel-heading">
+          <div>
+            <h2>{record.title}</h2>
+            <p>{record.id} is assigned to {record.assignee}.</p>
+          </div>
+          <span className={`status-pill ${statusClass(record.status)}`}>{getStatusLabel(record.status)}</span>
+        </div>
+        <div className="status-timeline">
+          {workflowSteps.map((step, index) => (
+            <span className={index === reachedIndex ? "current" : index < reachedIndex ? "reached" : ""} key={step}>
+              {step}
+            </span>
+          ))}
+        </div>
+        <div className="workflow-action-row">
+          {workflowActions.length > 0 ? workflowActions.map((action) => {
+            const Icon = getWorkflowActionIcon(action.id, action.tone);
+            return (
+              <button
+                className={action.tone === "red" ? "danger-mini" : action.tone === "gold" ? "solid-mini" : "plain-mini"}
+                key={action.id}
+                onClick={() => openModal({ type: "workflowDecision", actionId: action.id, recordId: record.id })}
+                type="button"
+              >
+                <Icon size={17} />
+                {action.label}
+              </button>
+            );
+          }) : (
+            <span className="read-only-note">
+              <LockKeyhole size={18} />
+              {roleConfigs[roleKey]?.readOnly ? "Read-only access only." : getNextActionText(record.status)}
+            </span>
+          )}
+        </div>
+      </article>
+
+      <WorkflowList title="Comments" items={relatedComments} empty="No comments for this MOA yet." />
+      <WorkflowList title="Audit Trail" items={relatedAudit.map((item) => ({ ...item, note: item.event }))} empty="No audit events yet." />
+      <WorkflowList title="Notifications" items={relatedNotifications} empty="No notifications for this MOA." />
+
+      <article className="panel-card">
+        <div className="panel-heading compact">
+          <h2>Status History</h2>
+          <History size={18} />
+        </div>
+        <div className="compact-list">
+          {relatedHistory.map((item) => (
+            <div key={item.id}>
+              <strong>{getStatusLabel(item.status)}</strong>
+              <small>{item.time}</small>
+            </div>
+          ))}
+        </div>
+      </article>
+    </section>
+  );
+}
+
+function WorkflowList({ title, items, empty }) {
+  return (
+    <article className="panel-card">
+      <div className="panel-heading compact">
+        <h2>{title}</h2>
+        <MessageSquare size={18} />
+      </div>
+      <div className="compact-list">
+        {items.length > 0 ? items.map((item) => (
+          <div key={item.id}>
+            <strong>{item.actor}</strong>
+            <span>{item.note}</span>
+            <small>{item.time}</small>
+          </div>
+        )) : <p className="empty-copy">{empty}</p>}
+      </div>
+    </article>
+  );
+}
+
+function WorkflowStrip({ roleKey, status }) {
+  const steps = isWorkflowRole(roleKey) ? workflowSteps : ["Department", "IRO Staff", "IRO Admin", "Legal", "President", "Repository"];
   const activeMap = {
     "department-staff": 0,
+    "scs-department-staff": 0,
+    "sas-department-staff": 1,
     "department-reads": 0,
-    "iro-staff": 1,
-    "iro-admin": 2,
+    "iro-staff": isWorkflowRole(roleKey) ? 3 : 1,
+    "iro-admin": isWorkflowRole(roleKey) ? 4 : 2,
     "iro-reads": 2,
-    legal: 3,
-    president: 4,
+    legal: isWorkflowRole(roleKey) ? 2 : 3,
+    president: isWorkflowRole(roleKey) ? 5 : 4,
     "super-admin": 5,
     "department-admin": 0,
   };
+  const activeIndex = isWorkflowRole(roleKey) ? getWorkflowStepIndex(status) : activeMap[roleKey];
 
   return (
     <div className="workflow-strip">
       {steps.map((step, index) => (
-        <span className={index <= activeMap[roleKey] ? "active" : ""} key={step}>
+        <span className={index <= activeIndex ? "active" : ""} key={step}>
           {step}
         </span>
       ))}
@@ -1183,15 +1524,40 @@ function getRouteLine(roleKey) {
   if (roleKey === "super-admin") {
     return "System governance manages users, settings, security policies, maintenance, and audit integrity without confidential document access.";
   }
+  if (roleKey === "scs-department-staff" || roleKey === "sas-department-staff") {
+    return "SCS Department Staff to SAS Department Staff to Legal to IRO Staff to IRO Admin to President's Office.";
+  }
+  if (isWorkflowRole(roleKey)) {
+    return "Demo MOA route: SCS Department Staff to SAS Department Staff to Legal to IRO Staff to IRO Admin to President's Office.";
+  }
   return "Department to IRO Staff to IRO Admin to Legal Counsel to President's Office to protected repository.";
 }
 
-function ModalHost({ modal, navigate, onClose }) {
-  const config = modal ? modalRegistry[modal] : null;
+function ModalHost({ modal, navigate, onClose, onWorkflowAction, selectedRecord }) {
+  const isWorkflowModal = modal && typeof modal === "object" && modal.type === "workflowDecision";
+  const workflowAction = isWorkflowModal ? workflowActionDefinitions[modal.actionId] : null;
+  const config = isWorkflowModal && workflowAction
+    ? {
+        title: workflowAction.modalTitle,
+        tone: workflowAction.tone,
+        body: `${workflowAction.label} for ${selectedRecord.id}. Current assignee: ${selectedRecord.assignee}.`,
+        fields: ["Decision", "Reason / comment"],
+        primary: workflowAction.primary,
+      }
+    : modal ? modalRegistry[modal] : null;
+  const [workflowNote, setWorkflowNote] = useState("");
+
+  useEffect(() => {
+    setWorkflowNote("");
+  }, [modal]);
 
   if (!config) return null;
 
   const complete = () => {
+    if (workflowAction) {
+      onWorkflowAction(modal.actionId, workflowNote || `${workflowAction.label} completed.`);
+      return;
+    }
     const next = config.next;
     onClose();
     if (next) navigate(next);
@@ -1214,7 +1580,12 @@ function ModalHost({ modal, navigate, onClose }) {
           {config.fields.map((field) => (
             <label key={field}>
               <span>{field}</span>
-              <ModalField field={field} />
+              <ModalField
+                field={field}
+                workflowAction={workflowAction}
+                workflowNote={workflowNote}
+                setWorkflowNote={setWorkflowNote}
+              />
             </label>
           ))}
         </div>
@@ -1227,7 +1598,25 @@ function ModalHost({ modal, navigate, onClose }) {
   );
 }
 
-function ModalField({ field }) {
+function ModalField({ field, workflowAction, workflowNote, setWorkflowNote }) {
+  if (field === "Decision" && workflowAction) {
+    return (
+      <select value={workflowAction.id} disabled>
+        <option value={workflowAction.id}>{workflowAction.label}</option>
+      </select>
+    );
+  }
+
+  if (field === "Reason / comment") {
+    return (
+      <textarea
+        onChange={(event) => setWorkflowNote(event.target.value)}
+        placeholder="Add a mock reason, routing note, or reviewer comment"
+        value={workflowNote}
+      />
+    );
+  }
+
   if (field === "PDF file") {
     return <input type="file" accept="application/pdf" />;
   }
@@ -1247,7 +1636,7 @@ function ModalField({ field }) {
     return (
       <select defaultValue="">
         <option value="" disabled>Select USJR department</option>
-        {usjrDepartments.map((department) => (
+        {workflowDepartments.map((department) => (
           <option key={department}>{department}</option>
         ))}
       </select>
@@ -1255,6 +1644,20 @@ function ModalField({ field }) {
   }
 
   return <input placeholder={`Mock ${field.toLowerCase()}`} />;
+}
+
+function getWorkflowActionIcon(actionId, tone) {
+  if (actionId?.includes("Reject") || actionId?.includes("Return") || tone === "red") return TriangleAlert;
+  if (actionId?.includes("Comment")) return MessageSquare;
+  if (actionId?.includes("Review")) return ClipboardCheck;
+  if (actionId?.includes("Edit") || actionId?.includes("revise")) return NotebookPen;
+  if (actionId?.includes("send") || actionId?.includes("Forward") || actionId?.includes("Endorse")) return Send;
+  if (actionId?.includes("Approve") || actionId?.includes("Clear")) return FileCheck2;
+  return Workflow;
+}
+
+function getActorLabel(roleKey) {
+  return roleConfigs[roleKey]?.label ?? "Conexia Workflow";
 }
 
 function NotFound({ navigate, role }) {

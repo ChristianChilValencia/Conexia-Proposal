@@ -536,7 +536,33 @@ textarea:focus-visible {
   display: grid;
   gap: 4px;
   padding: 10px;
+}
+
+.portal-sidebar-body {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.portal-sidebar-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.portal-sidebar-body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.portal-sidebar-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 193, 7, 0.62);
+}
+
+.portal-sidebar-body {
+  scrollbar-color: rgba(255, 193, 7, 0.62) rgba(255, 255, 255, 0.08);
+  scrollbar-width: thin;
 }
 
 .portal-sidebar nav button,
@@ -1295,6 +1321,12 @@ textarea:focus-visible {
     display: flex;
     overflow-x: auto;
     padding-bottom: 12px;
+  }
+
+  .portal-sidebar-body {
+    display: block;
+    overflow-y: visible;
+    scrollbar-width: auto;
   }
 
   .portal-sidebar nav button {
