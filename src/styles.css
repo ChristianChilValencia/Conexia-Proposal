@@ -562,18 +562,64 @@ input:focus-visible {
   flex: 1;
 }
 
-.portal-profile-card {
-  display: flex;
+.sidebar-engagement {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
+  gap: 4px 12px;
   margin: 14px 14px 0;
   padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 193, 7, 0.42);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.07);
+  color: #18231c;
+  background: var(--gold);
+  text-align: left;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.14);
 }
 
-.portal-profile-card b,
+.sidebar-engagement span {
+  grid-row: span 2;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff7dc;
+  background: var(--green-900);
+}
+
+.sidebar-engagement strong,
+.sidebar-engagement small {
+  display: block;
+}
+
+.sidebar-engagement strong {
+  line-height: 1.1;
+}
+
+.sidebar-engagement small {
+  color: rgba(24, 35, 28, 0.7);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.sidebar-engagement.locked {
+  cursor: not-allowed;
+  color: rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: none;
+}
+
+.sidebar-engagement.locked span {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.sidebar-engagement.locked small {
+  color: rgba(255, 255, 255, 0.52);
+}
+
 .topbar-user b {
   width: 42px;
   height: 42px;
@@ -585,19 +631,8 @@ input:focus-visible {
   font-weight: 900;
 }
 
-.portal-profile-card span,
 .topbar-user span {
   display: grid;
-}
-
-.portal-profile-card strong {
-  color: #fff;
-}
-
-.portal-profile-card small {
-  color: rgba(255, 255, 255, 0.58);
-  font-size: 12px;
-  font-weight: 800;
 }
 
 .sidebar-bottom {
@@ -1125,13 +1160,16 @@ input:focus-visible {
   font-weight: 900;
 }
 
-.modal-fields input {
+.modal-fields input,
+.modal-fields select {
   width: 100%;
   min-height: 44px;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0 12px;
   background: #fbfdfb;
+  color: var(--ink);
+  font: inherit;
 }
 
 .modal-card footer {
@@ -1265,7 +1303,7 @@ input:focus-visible {
     display: none;
   }
 
-  .portal-profile-card {
+  .sidebar-engagement {
     display: none;
   }
 

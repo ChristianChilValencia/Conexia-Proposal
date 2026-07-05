@@ -49,11 +49,12 @@ const roleConfigs = {
   "department-staff": {
     label: "Department Staff",
     shortLabel: "Dept Staff",
-    subtitle: "Engagement creator workspace",
+    subtitle: "Creates and revises authorized engagements",
     user: "Dr. Andrea Lim",
     initials: "AL",
     defaultRoute: "/department-staff/dashboard",
-    permissions: ["create", "submit", "revise"],
+    permissions: ["create", "upload", "revise", "authorized-documents"],
+    canCreateEngagement: true,
     icon: Landmark,
     pages: [
       ["dashboard", "Dashboard", Grid2X2],
@@ -69,11 +70,11 @@ const roleConfigs = {
   "iro-staff": {
     label: "IRO Staff",
     shortLabel: "IRO Staff",
-    subtitle: "First-level reviewer portal",
+    subtitle: "Completeness review and verification",
     user: "Maria J. Santos",
     initials: "MS",
     defaultRoute: "/iro-staff/dashboard",
-    permissions: ["review", "return", "forward"],
+    permissions: ["review", "comment", "request-revision", "forward"],
     icon: UsersRound,
     pages: [
       ["dashboard", "Dashboard", Grid2X2],
@@ -88,11 +89,12 @@ const roleConfigs = {
   "iro-admin": {
     label: "IRO Admin",
     shortLabel: "IRO Admin",
-    subtitle: "System controller and IRO approval",
+    subtitle: "Operational document controller",
     user: "Admin User",
     initials: "CV",
     defaultRoute: "/iro-admin/dashboard",
-    permissions: ["approve", "reject", "route", "manage"],
+    permissions: ["approve", "reject", "route", "repository", "accounts"],
+    canCreateEngagement: true,
     icon: Shield,
     pages: [
       ["dashboard", "Dashboard", Grid2X2],
@@ -107,14 +109,33 @@ const roleConfigs = {
       ["workflow-routing", "Workflow Routing", Route],
     ],
   },
+  "iro-reads": {
+    label: "IRO READS",
+    shortLabel: "IRO READS",
+    subtitle: "Read-only institutional records",
+    user: "IRO Records Viewer",
+    initials: "IR",
+    defaultRoute: "/iro-reads/dashboard",
+    permissions: ["read-only", "reports", "history"],
+    readOnly: true,
+    icon: Eye,
+    pages: [
+      ["dashboard", "Dashboard", Grid2X2],
+      ["engagement-records", "Engagement Records", FileArchive],
+      ["memorandum-documents", "Memorandum Documents", FileText],
+      ["submission-statuses", "Submission Statuses", FileClock],
+      ["approval-history", "Approval History", History],
+      ["dashboards-reports", "Dashboards & Reports", FileSearch],
+    ],
+  },
   legal: {
-    label: "Legal Counsel",
+    label: "Legal",
     shortLabel: "Legal",
-    subtitle: "Legal validation authority",
+    subtitle: "Assigned memorandum legal review",
     user: "Atty. Elena Santos",
     initials: "ES",
     defaultRoute: "/legal/dashboard",
-    permissions: ["legal-review", "legal-clearance"],
+    permissions: ["assigned-review", "legal-comments", "request-revision", "forward-president"],
     icon: Gavel,
     pages: [
       ["dashboard", "Dashboard", Grid2X2],
@@ -128,11 +149,11 @@ const roleConfigs = {
   president: {
     label: "President's Office",
     shortLabel: "President",
-    subtitle: "Executive approval workspace",
+    subtitle: "Final executive review",
     user: "Office of the President",
     initials: "OP",
     defaultRoute: "/president/executive-dashboard",
-    permissions: ["executive-approval", "read-all"],
+    permissions: ["executive-review", "digital-approval", "return-recommendation"],
     icon: Landmark,
     pages: [
       ["executive-dashboard", "Executive Dashboard", Grid2X2],
@@ -146,12 +167,12 @@ const roleConfigs = {
   "super-admin": {
     label: "Super Admin",
     shortLabel: "Super Admin",
-    subtitle: "Governance and security control",
+    subtitle: "System governance without document access",
     user: "Security Administrator",
     initials: "SA",
     defaultRoute: "/super-admin/system-dashboard",
-    permissions: ["governance", "security", "read-only-workflow"],
-    restricted: ["approve", "reject", "modify-submission"],
+    permissions: ["users", "roles", "settings", "security", "audit"],
+    restricted: ["view-confidential-documents", "download-documents", "approve", "reject", "modify-submission"],
     icon: UserCog,
     pages: [
       ["system-dashboard", "System Dashboard", Grid2X2],
@@ -167,11 +188,11 @@ const roleConfigs = {
   "department-admin": {
     label: "Department Admin",
     shortLabel: "Dept Admin",
-    subtitle: "Department-level system manager",
+    subtitle: "Department-level management",
     user: "Dean Rafael Cruz",
     initials: "RC",
     defaultRoute: "/department-admin/department-dashboard",
-    permissions: ["department-manage", "department-report"],
+    permissions: ["department-users", "department-logs", "department-reports", "department-monitoring"],
     icon: Building2,
     pages: [
       ["department-dashboard", "Department Dashboard", Grid2X2],
@@ -182,14 +203,34 @@ const roleConfigs = {
       ["submissions-monitor", "Submissions Monitor", FileClock],
     ],
   },
+  "department-reads": {
+    label: "Department READS",
+    shortLabel: "Dept READS",
+    subtitle: "Department read-only records",
+    user: "Department Records Viewer",
+    initials: "DR",
+    defaultRoute: "/department-reads/dashboard",
+    permissions: ["department-read-only", "comments", "approved-documents", "reports"],
+    readOnly: true,
+    icon: Eye,
+    pages: [
+      ["dashboard", "Dashboard", Grid2X2],
+      ["department-records", "Department Records", FileArchive],
+      ["memorandum-documents", "Memorandum Documents", FileText],
+      ["submission-statuses", "Submission Statuses", FileClock],
+      ["review-comments", "Review Comments", MessageSquare],
+      ["approved-documents", "Approved Documents", FileCheck2],
+      ["department-reports", "Department Reports", FileSearch],
+    ],
+  },
 };
 
 const modalRegistry = {
   createEngagement: {
     title: "Create Engagement",
     tone: "green",
-    body: "Start a new MOA, MOU, or MOF record with partner, department, budget, and routing details.",
-    fields: ["Partner institution", "Memorandum type", "Originating department"],
+    body: "Start a new MOA, MOU, or MOF record and choose the USJR department organizing or partnering in the engagement.",
+    fields: ["Partner institution", "Memorandum type", "Organizing / partner department"],
     primary: "Create Draft",
     next: "/department-staff/engagement-wizard",
   },
@@ -300,6 +341,17 @@ const modalRegistry = {
     primary: "Mark Read",
   },
 };
+
+const usjrDepartments = [
+  "SCS - School of Computer Studies",
+  "SAS - School of Arts and Sciences",
+  "SBM - School of Business and Management",
+  "SEA - School of Engineering and Architecture",
+  "SAMS - School of Allied and Medical Sciences",
+  "SED - School of Education",
+  "SOL - School of Law",
+  "ETEEAP - Expanded Tertiary Education Equivalency and Accreditation Program",
+];
 
 const records = [
   {
@@ -457,7 +509,7 @@ function Landing({ navigate }) {
           </div>
           <div className="landing-stats">
             <MetricMini value="2.5k+" label="Stored Agreements" />
-            <MetricMini value="7" label="Role Workspaces" />
+          <MetricMini value="9" label="Role Workspaces" />
             <MetricMini value="24/7" label="Workflow Visibility" />
           </div>
         </div>
@@ -573,13 +625,7 @@ function PortalShell({ roleKey, role, pageKey, navigate, openModal }) {
           ))}
         </nav>
         <div className="portal-sidebar-spacer" />
-        <div className="portal-profile-card">
-          <b>{role.initials}</b>
-          <span>
-            <strong>{role.user}</strong>
-            <small>{role.label}</small>
-          </span>
-        </div>
+        <SidebarEngagementButton role={role} openModal={openModal} />
         <div className="sidebar-bottom">
           <button onClick={() => openModal("notificationDetail")} type="button">
             <Bell size={20} />
@@ -604,6 +650,25 @@ function PortalShell({ roleKey, role, pageKey, navigate, openModal }) {
         />
       </section>
     </main>
+  );
+}
+
+function SidebarEngagementButton({ role, openModal }) {
+  const locked = !role.canCreateEngagement;
+  return (
+    <button
+      className={locked ? "sidebar-engagement locked" : "sidebar-engagement"}
+      disabled={locked}
+      onClick={() => openModal("createEngagement")}
+      title={locked ? "This role cannot create engagement records" : "Create a new engagement"}
+      type="button"
+    >
+      <span>
+        {locked ? <LockKeyhole size={20} /> : <Plus size={20} />}
+      </span>
+      <strong>New Engagement</strong>
+      <small>{locked ? "Not available for this role" : "Create MOA, MOU, or MOF"}</small>
+    </button>
   );
 }
 
@@ -728,6 +793,60 @@ function getMetrics(roleKey, pageKey) {
     ];
   }
 
+  if (roleConfigs[roleKey]?.readOnly) {
+    return [
+      { label: "Readable Records", value: roleKey === "iro-reads" ? "2,418" : "126", detail: "No edit access", tone: "green", icon: Eye },
+      { label: "Status Updates", value: "38", detail: "Recently changed", tone: "gold", icon: FileClock },
+      { label: "Approved Docs", value: "91", detail: "Reference access", tone: "soft", icon: FileCheck2 },
+      { label: "Blocked Actions", value: "0", detail: "Write permissions", tone: "red", icon: LockKeyhole },
+    ];
+  }
+
+  if (roleKey === "department-admin") {
+    return [
+      { label: "Dept Users", value: "34", detail: "Department scope", tone: "green", icon: UsersRound },
+      { label: "Dept Records", value: "18", detail: "Monitored only", tone: "soft", icon: Building2 },
+      { label: "Compliance Reports", value: "6", detail: "This month", tone: "gold", icon: FileSearch },
+      { label: "Audit Events", value: "142", detail: "Department log", tone: "green", icon: History },
+    ];
+  }
+
+  if (roleKey === "iro-admin") {
+    return [
+      { label: "Approval Queue", value: "12", detail: "Final IRO action", tone: "gold", icon: FileCheck2 },
+      { label: "Protected Docs", value: "84", detail: "Repository scope", tone: "green", icon: LockKeyhole },
+      { label: "Access Requests", value: "9", detail: "Needs decision", tone: "red", icon: ShieldCheck },
+      { label: "Expiring 90d", value: "19", detail: "Renewal watch", tone: "soft", icon: CalendarClock },
+    ];
+  }
+
+  if (roleKey === "iro-staff") {
+    return [
+      { label: "Review Queue", value: "18", detail: "Completeness check", tone: "gold", icon: ClipboardCheck },
+      { label: "Returned", value: "5", detail: "Revision requested", tone: "red", icon: TriangleAlert },
+      { label: "Forwarded", value: "22", detail: "To IRO Admin", tone: "green", icon: Send },
+      { label: "Remarks Added", value: "41", detail: "This month", tone: "soft", icon: MessageSquare },
+    ];
+  }
+
+  if (roleKey === "legal") {
+    return [
+      { label: "Assigned Reviews", value: "8", detail: "Legal queue", tone: "gold", icon: Gavel },
+      { label: "Deficiencies", value: "3", detail: "Clause issues", tone: "red", icon: TriangleAlert },
+      { label: "Cleared", value: "16", detail: "To President", tone: "green", icon: ShieldCheck },
+      { label: "High Value", value: "4", detail: "Priority agreements", tone: "soft", icon: BriefcaseBusiness },
+    ];
+  }
+
+  if (roleKey === "president") {
+    return [
+      { label: "Executive Queue", value: "6", detail: "Final review", tone: "gold", icon: FileCheck2 },
+      { label: "Digitally Approved", value: "14", detail: "This quarter", tone: "green", icon: CheckCheck },
+      { label: "Returned", value: "2", detail: "Revision recommended", tone: "red", icon: TriangleAlert },
+      { label: "Executive Reports", value: "9", detail: "Available", tone: "soft", icon: FileSearch },
+    ];
+  }
+
   if (pageKey.includes("expiry")) {
     return [
       { label: "Expiring 30d", value: "7", detail: "Immediate review", tone: "red", icon: CalendarClock },
@@ -749,6 +868,13 @@ function getQuickActions(roleKey, pageKey, isSuperAdmin) {
     ];
   }
 
+  if (roleConfigs[roleKey]?.readOnly) {
+    return [
+      { label: "View History", route: getDetailRoute(roleKey), icon: History, primary: true },
+      { label: "Export", modal: "exportReport", icon: Download },
+    ];
+  }
+
   if (roleKey === "department-staff") {
     return [
       { label: "New Engagement", modal: "createEngagement", icon: Plus, primary: true },
@@ -757,11 +883,43 @@ function getQuickActions(roleKey, pageKey, isSuperAdmin) {
     ];
   }
 
+  if (roleKey === "department-admin") {
+    return [
+      { label: "Department User", modal: "userAccount", icon: UserCog, primary: true },
+      { label: "Compliance Report", modal: "exportReport", icon: FileSearch },
+      { label: "Audit Detail", modal: "auditDetail", icon: History },
+    ];
+  }
+
+  if (roleKey === "iro-admin") {
+    return [
+      { label: "Decision", modal: "approvalDecision", icon: FileCheck2, primary: true },
+      { label: "Assign Access", modal: "assignPermissions", icon: KeyRound },
+      { label: "Reset Password", modal: "resetPassword", icon: LockKeyhole },
+    ];
+  }
+
+  if (roleKey === "iro-staff") {
+    return [
+      { label: "Checklist", modal: "checklist", icon: ClipboardCheck, primary: true },
+      { label: "Return", modal: "returnRevision", icon: TriangleAlert },
+      { label: "Remarks", modal: "remarks", icon: MessageSquare },
+    ];
+  }
+
   if (roleKey === "legal") {
     return [
       { label: "Legal Clearance", modal: "legalClearance", icon: Gavel, primary: true },
       { label: "Remarks", modal: "remarks", icon: MessageSquare },
       { label: "Checklist", modal: "checklist", icon: ClipboardCheck },
+    ];
+  }
+
+  if (roleKey === "president") {
+    return [
+      { label: "Executive Decision", modal: "approvalDecision", icon: FileCheck2, primary: true },
+      { label: "Return Recommendation", modal: "returnRevision", icon: TriangleAlert },
+      { label: "Executive Report", modal: "exportReport", icon: Download },
     ];
   }
 
@@ -775,8 +933,26 @@ function getQuickActions(roleKey, pageKey, isSuperAdmin) {
 function getPageCopy(roleKey, pageKey) {
   const readable = pageKey.replaceAll("-", " ");
   const role = roleConfigs[roleKey]?.label ?? "Conexia";
+  if (roleConfigs[roleKey]?.readOnly) {
+    return `Read-only access to ${readable}; creation, upload, edit, approval, rejection, and deletion are disabled.`;
+  }
   if (roleKey === "super-admin") {
-    return `Monitor ${readable} across system governance and security scope.`;
+    return `Manage ${readable} for system governance without confidential memorandum access unless IRO Admin authorizes it.`;
+  }
+  if (roleKey === "department-admin") {
+    return `Monitor ${readable}, users, reports, and audit logs within the department scope only.`;
+  }
+  if (roleKey === "iro-admin") {
+    return `Operate ${readable}, approvals, protected repository access, expiry tracking, and IRO-managed accounts.`;
+  }
+  if (roleKey === "iro-staff") {
+    return `Review ${readable}, validate completeness, add comments, request revision, and forward complete records.`;
+  }
+  if (roleKey === "legal") {
+    return `Review assigned ${readable} for legal sufficiency and forward compliant memorandums to the President's Office.`;
+  }
+  if (roleKey === "president") {
+    return `Conduct final executive review for legally cleared high-value or interdepartmental memorandums.`;
   }
   if (pageKey.includes("detail")) {
     return `Review the selected record, history, document state, and next routing action.`;
@@ -796,6 +972,11 @@ function getTableTitle(pageKey) {
 function RecordTable({ roleKey, pageKey, navigate, openModal }) {
   const detailRoute = getDetailRoute(roleKey);
   const isSuperAdmin = roleKey === "super-admin";
+  const isReadOnly = roleConfigs[roleKey]?.readOnly;
+  const canEdit = ["department-staff", "iro-admin"].includes(roleKey);
+  const canComment = ["department-staff", "iro-staff", "legal", "president"].includes(roleKey);
+  const canReview = ["iro-staff", "legal"].includes(roleKey);
+  const canDecide = ["iro-admin", "president"].includes(roleKey);
 
   return (
     <div className="record-table">
@@ -819,17 +1000,29 @@ function RecordTable({ roleKey, pageKey, navigate, openModal }) {
             <button aria-label={`View ${record.id}`} onClick={() => navigate(detailRoute)} type="button">
               <Eye size={18} />
             </button>
-            <button aria-label={`Add remarks to ${record.id}`} onClick={() => openModal("remarks")} type="button">
-              <MessageSquare size={18} />
-            </button>
-            {!isSuperAdmin ? (
+            {canComment ? (
+              <button aria-label={`Add remarks to ${record.id}`} onClick={() => openModal("remarks")} type="button">
+                <MessageSquare size={18} />
+              </button>
+            ) : null}
+            {canEdit ? (
               <button aria-label={`Edit ${record.id}`} onClick={() => openModal("editEngagement")} type="button">
                 <NotebookPen size={18} />
               </button>
             ) : null}
-            {!isSuperAdmin ? (
+            {canReview ? (
               <button aria-label={`Review ${record.id}`} onClick={() => openModal("checklist")} type="button">
                 <ClipboardCheck size={18} />
+              </button>
+            ) : null}
+            {canDecide ? (
+              <button aria-label={`Decide ${record.id}`} onClick={() => openModal("approvalDecision")} type="button">
+                <FileCheck2 size={18} />
+              </button>
+            ) : null}
+            {isReadOnly || isSuperAdmin ? (
+              <button aria-label={`Export ${record.id}`} onClick={() => openModal("exportReport")} type="button">
+                <Download size={18} />
               </button>
             ) : null}
           </span>
@@ -852,26 +1045,65 @@ function getDetailRoute(roleKey) {
     "department-staff": "/department-staff/submission-detail",
     "iro-staff": "/iro-staff/review-detail",
     "iro-admin": "/iro-admin/approval-queue",
+    "iro-reads": "/iro-reads/approval-history",
     legal: "/legal/legal-review-detail",
     president: "/president/submission-review-detail",
     "super-admin": "/super-admin/audit-logs",
     "department-admin": "/department-admin/submissions-monitor",
+    "department-reads": "/department-reads/review-comments",
   };
   return routes[roleKey] ?? "/";
 }
 
 function ActionCenter({ roleKey, isSuperAdmin, navigate, openModal }) {
-  const actions = isSuperAdmin
-    ? [
-        ["Manage users", "userAccount", UserCog],
-        ["Review access", "accessRequest", ShieldCheck],
-        ["Inspect audit event", "auditDetail", FileSearch],
-      ]
-    : [
-        ["Assign permissions", "assignPermissions", KeyRound],
-        ["Return for revision", "returnRevision", TriangleAlert],
-        ["Reset document password", "resetPassword", LockKeyhole],
-      ];
+  const actionMap = {
+    "department-staff": [
+      ["Upload memorandum", "uploadPdf", FileText],
+      ["Submit for IRO review", "submitReview", Send],
+      ["Respond to comments", "remarks", MessageSquare],
+    ],
+    "department-admin": [
+      ["Manage department users", "userAccount", UserCog],
+      ["Department audit detail", "auditDetail", History],
+      ["Compliance report", "exportReport", FileSearch],
+    ],
+    "department-reads": [
+      ["View review comments", "auditDetail", MessageSquare],
+      ["Export department report", "exportReport", Download],
+      ["Notification detail", "notificationDetail", Bell],
+    ],
+    "iro-staff": [
+      ["Completeness checklist", "checklist", ClipboardCheck],
+      ["Request revision", "returnRevision", TriangleAlert],
+      ["Forward with remarks", "remarks", Send],
+    ],
+    "iro-admin": [
+      ["Approve or reject", "approvalDecision", FileCheck2],
+      ["Assign document access", "assignPermissions", KeyRound],
+      ["Reset document password", "resetPassword", LockKeyhole],
+    ],
+    "iro-reads": [
+      ["View approval history", "auditDetail", History],
+      ["Export institutional report", "exportReport", Download],
+      ["Notification detail", "notificationDetail", Bell],
+    ],
+    legal: [
+      ["Legal clearance", "legalClearance", Gavel],
+      ["Request legal revision", "returnRevision", TriangleAlert],
+      ["Add legal comments", "remarks", MessageSquare],
+    ],
+    president: [
+      ["Executive approval", "approvalDecision", FileCheck2],
+      ["Return recommendation", "returnRevision", TriangleAlert],
+      ["Executive report", "exportReport", FileSearch],
+    ],
+    "super-admin": [
+      ["Manage users and roles", "userAccount", UserCog],
+      ["Inspect audit event", "auditDetail", FileSearch],
+      ["System report", "exportReport", Download],
+    ],
+  };
+  const actions = actionMap[roleKey] ?? [];
 
   return (
     <article className="panel-card action-center">
@@ -923,8 +1155,10 @@ function WorkflowStrip({ roleKey }) {
   const steps = ["Department", "IRO Staff", "IRO Admin", "Legal", "President", "Repository"];
   const activeMap = {
     "department-staff": 0,
+    "department-reads": 0,
     "iro-staff": 1,
     "iro-admin": 2,
+    "iro-reads": 2,
     legal: 3,
     president: 4,
     "super-admin": 5,
@@ -943,8 +1177,11 @@ function WorkflowStrip({ roleKey }) {
 }
 
 function getRouteLine(roleKey) {
+  if (roleConfigs[roleKey]?.readOnly) {
+    return "READS roles monitor authorized records, statuses, comments, history, and reports without write actions.";
+  }
   if (roleKey === "super-admin") {
-    return "System governance monitors activity, access, reports, and audit integrity across role scopes.";
+    return "System governance manages users, settings, security policies, maintenance, and audit integrity without confidential document access.";
   }
   return "Department to IRO Staff to IRO Admin to Legal Counsel to President's Office to protected repository.";
 }
@@ -977,7 +1214,7 @@ function ModalHost({ modal, navigate, onClose }) {
           {config.fields.map((field) => (
             <label key={field}>
               <span>{field}</span>
-              {field === "PDF file" ? <input type="file" accept="application/pdf" /> : <input placeholder={`Mock ${field.toLowerCase()}`} />}
+              <ModalField field={field} />
             </label>
           ))}
         </div>
@@ -988,6 +1225,36 @@ function ModalHost({ modal, navigate, onClose }) {
       </section>
     </div>
   );
+}
+
+function ModalField({ field }) {
+  if (field === "PDF file") {
+    return <input type="file" accept="application/pdf" />;
+  }
+
+  if (field === "Memorandum type") {
+    return (
+      <select defaultValue="">
+        <option value="" disabled>Select memorandum type</option>
+        <option>MOA - Memorandum of Agreement</option>
+        <option>MOU - Memorandum of Understanding</option>
+        <option>MOF - Memorandum of Foundation</option>
+      </select>
+    );
+  }
+
+  if (field === "Organizing / partner department") {
+    return (
+      <select defaultValue="">
+        <option value="" disabled>Select USJR department</option>
+        {usjrDepartments.map((department) => (
+          <option key={department}>{department}</option>
+        ))}
+      </select>
+    );
+  }
+
+  return <input placeholder={`Mock ${field.toLowerCase()}`} />;
 }
 
 function NotFound({ navigate, role }) {

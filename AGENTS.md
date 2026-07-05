@@ -22,19 +22,33 @@ Conexia is a React 19 + Vite frontend MVP for an institutional agreement workflo
 
 ## Roles To Preserve
 - Department Staff
+- Department Admin
+- Department READS
 - IRO Staff
+- IRO READS
 - IRO Admin
-- Legal Counsel
+- Legal
 - President's Office
 - Super Admin
-- Department Admin
 
 ## Frontend Rules
 - Use lucide-react icons already available in the project.
 - Prefer reusable components only when they reduce duplication or clarify structure.
 - Keep actions, permissions, dashboards, and workflow labels role-accurate.
-- Make Super Admin governance-only: no approve/reject, workflow action, upload, edit, or submission mutation UI.
+- Make READS roles read-only: no create, upload, edit, approve, reject, or delete UI.
+- Make Super Admin governance-only: no confidential document access or workflow action unless explicitly authorized by IRO Admin.
+- Roles that create agreements must choose the USJR organizing/partner department.
 - Avoid broad refactors while building MVP screens.
+
+## USJR Department Options
+- SCS - School of Computer Studies
+- SAS - School of Arts and Sciences
+- SBM - School of Business and Management
+- SEA - School of Engineering and Architecture
+- SAMS - School of Allied and Medical Sciences
+- SED - School of Education
+- SOL - School of Law
+- ETEEAP - Expanded Tertiary Education Equivalency and Accreditation Program
 
 ## Verification
 - Run `npm run build` after implementation changes.
