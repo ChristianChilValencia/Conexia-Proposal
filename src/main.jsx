@@ -706,14 +706,7 @@ function PageView({ roleKey, role, pageKey, pageTitle, navigate, openModal }) {
           <ActivityPanel openModal={openModal} />
         </aside>
       </section>
-
-      <section className="route-map">
-        <div>
-          <h2>Workflow Routing</h2>
-          <p>{getRouteLine(roleKey)}</p>
-        </div>
-        <WorkflowStrip roleKey={roleKey} />
-      </section>
+      
     </div>
   );
 }
